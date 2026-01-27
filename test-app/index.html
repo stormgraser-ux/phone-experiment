@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#6366f1">
+  <title>Tap Counter</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    h1 { font-size: 5rem; margin-bottom: 1rem; }
+    p { font-size: 1.2rem; opacity: 0.8; }
+    button {
+      margin-top: 2rem;
+      padding: 1rem 2rem;
+      font-size: 1.2rem;
+      border: none;
+      border-radius: 50px;
+      background: rgba(255,255,255,0.2);
+      color: white;
+      cursor: pointer;
+    }
+    button:active { background: rgba(255,255,255,0.3); }
+    .tap-area {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 100px;
+    }
+  </style>
+</head>
+<body>
+  <div class="tap-area" id="tap-area"></div>
+  <h1 id="count">0</h1>
+  <p>Tap anywhere to count</p>
+  <button id="reset">Reset</button>
+  <script>
+    let count = 0;
+    const countEl = document.getElementById('count');
+    const tapArea = document.getElementById('tap-area');
+
+    tapArea.addEventListener('click', () => {
+      count++;
+      countEl.textContent = count;
+      countEl.style.transform = 'scale(1.2)';
+      setTimeout(() => countEl.style.transform = 'scale(1)', 100);
+    });
+
+    document.getElementById('reset').addEventListener('click', () => {
+      count = 0;
+      countEl.textContent = '0';
+    });
+  </script>
+</body>
+</html>
