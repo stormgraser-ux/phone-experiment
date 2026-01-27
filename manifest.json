@@ -2,7 +2,7 @@
   "name": "Particle Chaos",
   "short_name": "Chaos",
   "description": "Interactive particle physics sandbox - touch to create chaos",
-  "start_url": "/",
+  "start_url": "./",
   "display": "fullscreen",
   "orientation": "any",
   "background_color": "#000000",
