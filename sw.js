@@ -1,12 +1,11 @@
 // Service Worker for offline support
-const CACHE_NAME = 'particle-chaos-v1';
+const CACHE_NAME = 'particle-chaos-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/app.js',
   '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
+  '/icon-192.svg'
 ];
 
 // Install - cache assets
@@ -18,7 +17,7 @@ self.addEventListener('install', e => {
   );
 });
 
-// Activate - clean old caches
+// Activate - clean old caches and take control immediately
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -29,11 +28,18 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Fetch - serve from cache, fallback to network
+// Fetch - network first, fall back to cache
 self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request)
-      .then(cached => cached || fetch(e.request))
-      .catch(() => caches.match('/index.html'))
+    fetch(e.request)
+      .then(response => {
+        // Cache successful responses
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
