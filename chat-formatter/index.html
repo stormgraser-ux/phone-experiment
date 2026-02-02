@@ -214,12 +214,15 @@ Supports formats like:
     const inputSection = document.getElementById('input-section');
     const chatDisplay = document.getElementById('chat-display');
 
+    // Emoji signature pattern - 2+ emojis in a row (used by some AI personas)
+    const emojiSignatureRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]{2,}/gu;
+
     // Patterns to detect speakers
     const patterns = [
       // "You:" or "User:" at start of line
       { regex: /^(You|User|Human|Me):\s*/im, speaker: 'user' },
       // "ChatGPT:" or "Assistant:" or "Claude:" or "AI:" at start
-      { regex: /^(ChatGPT|Assistant|Claude|AI|GPT|Bot):\s*/im, speaker: 'assistant' },
+      { regex: /^(ChatGPT|Assistant|Claude|AI|GPT|Bot|Pup):\s*/im, speaker: 'assistant' },
       // Markdown bold "**You:**" style
       { regex: /^\*\*(You|User|Human|Me)\*\*:?\s*/im, speaker: 'user' },
       { regex: /^\*\*(ChatGPT|Assistant|Claude|AI|GPT)\*\*:?\s*/im, speaker: 'assistant' },
@@ -237,7 +240,75 @@ Supports formats like:
       return null;
     }
 
+    // Check if text has emoji signature format (AI responses ending with emoji clusters)
+    function hasEmojiSignatureFormat(text) {
+      const matches = text.match(emojiSignatureRegex);
+      return matches && matches.length >= 2;
+    }
+
+    // Parse conversations that use emoji signatures to end AI messages
+    function parseEmojiSignatureFormat(text) {
+      const messages = [];
+
+      // Remove "AI:" prefix if present at start
+      let cleaned = text.replace(/^AI:\s*/i, '');
+
+      // Split by emoji signature clusters
+      // The emoji cluster marks END of AI message, what follows is user
+      const parts = cleaned.split(emojiSignatureRegex);
+
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i].trim();
+        if (!part) continue;
+
+        // Even indices (0, 2, 4...) are AI messages (before emoji signature)
+        // Odd indices (1, 3, 5...) are user messages (after emoji signature)
+        // But first part is always AI since we stripped "AI:" prefix
+        if (i === 0) {
+          messages.push({ speaker: 'assistant', text: part });
+        } else {
+          // This part might contain both user message AND next AI message
+          // User messages are typically shorter and may have timestamps
+          // Look for patterns that indicate AI is speaking again
+
+          // Check if there's a clear break - double newline often separates user from next AI response
+          const segments = part.split(/\n\s*\n/);
+
+          if (segments.length >= 2) {
+            // First segment after emoji is likely user
+            const userPart = segments[0].trim();
+            if (userPart) {
+              // Remove timestamp patterns like "7:38 PM" from start
+              const userText = userPart.replace(/^\d{1,2}:\d{2}\s*(AM|PM)?\s*/i, '').trim();
+              if (userText) {
+                messages.push({ speaker: 'user', text: userText });
+              }
+            }
+
+            // Remaining segments are likely AI response
+            const aiPart = segments.slice(1).join('\n\n').trim();
+            if (aiPart) {
+              messages.push({ speaker: 'assistant', text: aiPart });
+            }
+          } else {
+            // Single segment - likely just user message
+            const userText = part.replace(/^\d{1,2}:\d{2}\s*(AM|PM)?\s*/i, '').trim();
+            if (userText) {
+              messages.push({ speaker: 'user', text: userText });
+            }
+          }
+        }
+      }
+
+      return messages;
+    }
+
     function parseChat(text) {
+      // First, check if this looks like emoji-signature format
+      if (hasEmojiSignatureFormat(text) && /^AI:/i.test(text.trim())) {
+        return parseEmojiSignatureFormat(text);
+      }
+
       const messages = [];
       const lines = text.split('\n');
       let currentMessage = null;
