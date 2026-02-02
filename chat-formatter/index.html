@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="theme-color" content="#1a1a2e">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <title>Chat Formatter</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      min-height: 100dvh;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    }
+
+    .container {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      text-align: center;
+      margin-bottom: 16px;
+      color: #a78bfa;
+    }
+
+    .input-section {
+      margin-bottom: 16px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 150px;
+      padding: 12px;
+      border: 2px solid #3d3d5c;
+      border-radius: 12px;
+      background: #16213e;
+      color: #eee;
+      font-size: 16px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #a78bfa;
+    }
+
+    textarea::placeholder {
+      color: #666;
+    }
+
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px 20px;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.1s;
+    }
+
+    button:active {
+      transform: scale(0.97);
+    }
+
+    .btn-format {
+      background: linear-gradient(135deg, #a78bfa, #7c3aed);
+      color: white;
+    }
+
+    .btn-clear {
+      background: #3d3d5c;
+      color: #ccc;
+    }
+
+    .chat-display {
+      display: none;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 20px;
+    }
+
+    .chat-display.active {
+      display: flex;
+    }
+
+    .message {
+      max-width: 90%;
+      padding: 12px 16px;
+      border-radius: 18px;
+      line-height: 1.5;
+      word-wrap: break-word;
+      white-space: pre-wrap;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border-bottom-right-radius: 4px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: #2d2d44;
+      border-bottom-left-radius: 4px;
+    }
+
+    .speaker-label {
+      font-size: 0.75rem;
+      color: #888;
+      margin-bottom: 4px;
+      padding: 0 4px;
+    }
+
+    .speaker-label.user {
+      text-align: right;
+    }
+
+    .message-wrapper {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message-wrapper.user {
+      align-items: flex-end;
+    }
+
+    .message-wrapper.assistant {
+      align-items: flex-start;
+    }
+
+    .back-btn {
+      background: none;
+      border: none;
+      color: #a78bfa;
+      font-size: 1rem;
+      padding: 8px 0;
+      margin-bottom: 12px;
+      cursor: pointer;
+      display: none;
+    }
+
+    .back-btn.active {
+      display: block;
+    }
+
+    .hint {
+      text-align: center;
+      color: #666;
+      font-size: 0.85rem;
+      margin-top: 8px;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #666;
+      padding: 40px 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Chat Formatter</h1>
+
+    <button class="back-btn" id="back-btn">&larr; Paste new text</button>
+
+    <div class="input-section" id="input-section">
+      <textarea
+        id="input"
+        placeholder="Paste your ChatGPT conversation here...
+
+Supports formats like:
+- You: message / ChatGPT: response
+- User: message / Assistant: response
+- **You:** message
+- Or just alternating paragraphs"></textarea>
+      <div class="buttons">
+        <button class="btn-clear" id="clear-btn">Clear</button>
+        <button class="btn-format" id="format-btn">Format Chat</button>
+      </div>
+      <p class="hint">Auto-detects speakers from common chat formats</p>
+    </div>
+
+    <div class="chat-display" id="chat-display"></div>
+  </div>
+
+  <script>
+    const input = document.getElementById('input');
+    const formatBtn = document.getElementById('format-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const backBtn = document.getElementById('back-btn');
+    const inputSection = document.getElementById('input-section');
+    const chatDisplay = document.getElementById('chat-display');
+
+    // Patterns to detect speakers
+    const patterns = [
+      // "You:" or "User:" at start of line
+      { regex: /^(You|User|Human|Me):\s*/im, speaker: 'user' },
+      // "ChatGPT:" or "Assistant:" or "Claude:" or "AI:" at start
+      { regex: /^(ChatGPT|Assistant|Claude|AI|GPT|Bot):\s*/im, speaker: 'assistant' },
+      // Markdown bold "**You:**" style
+      { regex: /^\*\*(You|User|Human|Me)\*\*:?\s*/im, speaker: 'user' },
+      { regex: /^\*\*(ChatGPT|Assistant|Claude|AI|GPT)\*\*:?\s*/im, speaker: 'assistant' },
+      // "### You" markdown header style
+      { regex: /^###?\s*(You|User|Human|Me):?\s*/im, speaker: 'user' },
+      { regex: /^###?\s*(ChatGPT|Assistant|Claude|AI|GPT):?\s*/im, speaker: 'assistant' },
+    ];
+
+    function detectSpeaker(line) {
+      for (const p of patterns) {
+        if (p.regex.test(line)) {
+          return { speaker: p.speaker, text: line.replace(p.regex, '') };
+        }
+      }
+      return null;
+    }
+
+    function parseChat(text) {
+      const messages = [];
+      const lines = text.split('\n');
+      let currentMessage = null;
+      let currentSpeaker = null;
+
+      for (let line of lines) {
+        const detected = detectSpeaker(line);
+
+        if (detected) {
+          // Save previous message
+          if (currentMessage !== null) {
+            messages.push({ speaker: currentSpeaker, text: currentMessage.trim() });
+          }
+          // Start new message
+          currentSpeaker = detected.speaker;
+          currentMessage = detected.text;
+        } else if (currentMessage !== null) {
+          // Continue current message
+          currentMessage += '\n' + line;
+        } else {
+          // No speaker detected yet, try to infer from structure
+          // Skip empty lines at the start
+          if (line.trim() === '') continue;
+
+          // If we haven't found any labeled messages, assume alternating
+          // First message is user
+          currentSpeaker = 'user';
+          currentMessage = line;
+        }
+      }
+
+      // Don't forget the last message
+      if (currentMessage !== null && currentMessage.trim()) {
+        messages.push({ speaker: currentSpeaker, text: currentMessage.trim() });
+      }
+
+      // If we only got one speaker or no patterns matched,
+      // try splitting by double newlines and alternating
+      if (messages.length <= 1 || messages.every(m => m.speaker === messages[0]?.speaker)) {
+        return parseAlternating(text);
+      }
+
+      return messages;
+    }
+
+    function parseAlternating(text) {
+      // Split by double newlines (paragraph breaks)
+      const blocks = text.split(/\n\s*\n/).filter(b => b.trim());
+      const messages = [];
+
+      blocks.forEach((block, i) => {
+        // Clean up the block
+        let cleaned = block.trim();
+
+        // Try to detect speaker even in alternating mode
+        const detected = detectSpeaker(cleaned);
+        if (detected) {
+          messages.push({ speaker: detected.speaker, text: detected.text.trim() });
+        } else {
+          // Alternate: even = user, odd = assistant
+          messages.push({
+            speaker: i % 2 === 0 ? 'user' : 'assistant',
+            text: cleaned
+          });
+        }
+      });
+
+      return messages;
+    }
+
+    function renderChat(messages) {
+      chatDisplay.innerHTML = '';
+
+      if (messages.length === 0) {
+        chatDisplay.innerHTML = '<div class="empty-state">No messages detected.<br>Try pasting a conversation.</div>';
+        return;
+      }
+
+      messages.forEach(msg => {
+        const wrapper = document.createElement('div');
+        wrapper.className = `message-wrapper ${msg.speaker}`;
+
+        const label = document.createElement('div');
+        label.className = `speaker-label ${msg.speaker}`;
+        label.textContent = msg.speaker === 'user' ? 'You' : 'ChatGPT';
+
+        const bubble = document.createElement('div');
+        bubble.className = `message ${msg.speaker}`;
+        bubble.textContent = msg.text;
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(bubble);
+        chatDisplay.appendChild(wrapper);
+      });
+    }
+
+    function showChat() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      const messages = parseChat(text);
+      renderChat(messages);
+
+      inputSection.style.display = 'none';
+      chatDisplay.classList.add('active');
+      backBtn.classList.add('active');
+    }
+
+    function showInput() {
+      inputSection.style.display = 'block';
+      chatDisplay.classList.remove('active');
+      backBtn.classList.remove('active');
+    }
+
+    formatBtn.addEventListener('click', showChat);
+    clearBtn.addEventListener('click', () => {
+      input.value = '';
+      input.focus();
+    });
+    backBtn.addEventListener('click', showInput);
+
+    // Register service worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('../sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>
